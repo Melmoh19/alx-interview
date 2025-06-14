@@ -1,67 +1,70 @@
 #!/usr/bin/node
+
 const request = require('request');
 
-// Extract Movie ID from command-line arguments
+// Get movie ID from command line arguments
 const movieId = process.argv[2];
 
+// Check if movie ID is provided
 if (!movieId) {
-  console.error('Usage: ./0-starwars_characters.js <Movie ID>');
+  console.error('Usage: ./0-starwars_characters.js <movie_id>');
   process.exit(1);
 }
 
-const url = `https://swapi.dev/api/films/${movieId}/`;
+// Star Wars API base URL
+const apiUrl = `https://swapi-api.alx-tools.com/api/films/${movieId}/`;
 
-// Fetch movie data
-request(url, async (error, response, body) => {
-  if (error) {
-    console.error('Network error:', error.message);
-    return;
-  }
-
-  if (response.statusCode !== 200) {
-    console.error(`HTTP error: ${response.statusCode}`);
-    return;
-  }
-
-  let movieData;
-  try {
-    movieData = JSON.parse(body);
-  } catch (err) {
-    console.error('Parsing error:', err.message);
-    return;
-  }
-
-  const characters = movieData.characters;
-
-  try {
-    const characterNames = await Promise.all(
-      characters.map((url) =>
-        fetchCharacter(url).catch((err) => `Error: ${err.message}`)
-      )
-    );
-
-    characterNames.forEach((name) => console.log(name));
-  } catch (err) {
-    console.error('Error fetching character data:', err);
-  }
-});
-
-// Helper function
-function fetchCharacter (url) {
+// Function to fetch character name from URL
+function getCharacterName(characterUrl) {
   return new Promise((resolve, reject) => {
-    request(url, (error, response, body) => {
+    request(characterUrl, (error, response, body) => {
       if (error) {
-        reject(new Error(`Network error: ${error.message}`));
-      } else if (response.statusCode !== 200) {
-        reject(new Error(`HTTP error: ${response.statusCode} for ${url}`));
-      } else {
-        try {
-          const characterData = JSON.parse(body);
-          resolve(characterData.name);
-        } catch (err) {
-          reject(new Error(`Parsing error for ${url}: ${err.message}`));
-        }
+        reject(error);
+        return;
+      }
+      
+      if (response.statusCode !== 200) {
+        reject(new Error(`Failed to fetch character: ${response.statusCode}`));
+        return;
+      }
+      
+      try {
+        const character = JSON.parse(body);
+        resolve(character.name);
+      } catch (parseError) {
+        reject(parseError);
       }
     });
   });
 }
+
+// Fetch movie data
+request(apiUrl, async (error, response, body) => {
+  if (error) {
+    console.error('Error fetching movie data:', error.message);
+    process.exit(1);
+  }
+  
+  if (response.statusCode !== 200) {
+    console.error(`Error: Movie with ID ${movieId} not found`);
+    process.exit(1);
+  }
+  
+  try {
+    const movie = JSON.parse(body);
+    const characterUrls = movie.characters;
+    
+    // Fetch all character names in order
+    for (const characterUrl of characterUrls) {
+      try {
+        const characterName = await getCharacterName(characterUrl);
+        console.log(characterName);
+      } catch (charError) {
+        console.error('Error fetching character:', charError.message);
+      }
+    }
+  } catch (parseError) {
+    console.error('Error parsing movie data:', parseError.message);
+    process.exit(1);
+  }
+});
